@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>4 Freunde Radio</title>
+<script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --orange: #FF6B00; --orange-dark: #cc5500;
+    --black: #0a0a0a; --dark: #111;
+    --text: #e0e0e0; --green: #00ff88;
+    --screen-bg: #0f1a0f; --screen-text: #7fff7f;
+  }
+  body {
+    background: var(--black); min-height: 100vh;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--text); overflow-x: hidden; padding: 20px;
+  }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background: radial-gradient(ellipse at 20% 50%, rgba(255,107,0,0.04) 0%, transparent 60%);
+    pointer-events: none; z-index: 0;
+  }
+  .app { position: relative; z-index: 1; width: 100%; max-width: 380px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  .brand { text-align: center; letter-spacing: 0.15em; }
+  .brand h1 { font-family: 'Orbitron', monospace; font-weight: 900; font-size: clamp(1.4rem,5vw,1.8rem); color: var(--orange); text-shadow: 0 0 20px rgba(255,107,0,0.6); letter-spacing: 0.2em; }
+  .brand p { font-size: 0.65rem; color: #555; letter-spacing: 0.3em; margin-top: 2px; }
+  .radio {
+    background: linear-gradient(160deg, #1c1c1c 0%, #111 50%, #0d0d0d 100%);
+    border: 1px solid #2a2a2a; border-radius: 24px; width: 100%; padding: 20px;
+    box-shadow: 0 0 0 1px #333, 0 20px 60px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.05), 0 0 30px rgba(255,107,0,0.05);
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .screen {
+    background: var(--screen-bg); border: 2px solid #1a2e1a; border-radius: 10px; padding: 14px 16px;
+    box-shadow: inset 0 0 20px rgba(0,0,0,0.8); position: relative; overflow: hidden;
+  }
+  .screen::before {
+    content: ''; position: absolute; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px);
+    pointer-events: none;
+  }
+  .screen-row { display: flex; justify-content: space-between; align-items: center; }
+  .screen-label { font-size: 0.6rem; color: #3a5c3a; letter-spacing: 0.2em; text-transform: uppercase; }
+  .screen-channel { font-family: 'Orbitron', monospace; font-size: 2.2rem; font-weight: 900; color: var(--screen-text); text-shadow: 0 0 10px rgba(127,255,127,0.5); letter-spacing: 0.1em; line-height: 1; }
+  .screen-status { font-size: 0.65rem; color: #3a5c3a; letter-spacing: 0.15em; }
+  .screen-status.active { color: var(--green); text-shadow: 0 0 8px rgba(0,255,136,0.6); animation: blink 1s infinite; }
+  .screen-status.transmit { color: var(--orange); text-shadow: 0 0 8px rgba(255,107,0,0.8); animation: blink 0.5s infinite; }
+  @keyframes blink { 0%,100%{opacity:1}50%{opacity:0.3} }
+  .signal-bars { display: flex; align-items: flex-end; gap: 2px; height: 16px; }
+  .bar { width: 4px; background: #1a3a1a; border-radius: 1px; transition: background 0.3s; }
+  .bar:nth-child(1){height:4px}.bar:nth-child(2){height:7px}.bar:nth-child(3){height:10px}.bar:nth-child(4){height:13px}.bar:nth-child(5){height:16px}
+  .bar.active { background: var(--green); box-shadow: 0 0 4px rgba(0,255,136,0.5); }
+  .setup-label { font-size: 0.6rem; color: #444; letter-spacing: 0.2em; text-transform: uppercase; }
+  .name-section { display: flex; flex-direction: column; gap: 8px; }
+  .name-input { background: #0d0d0d; border: 1px solid #2a2a2a; border-radius: 8px; color: var(--text); font-family: 'Share Tech Mono', monospace; font-size: 0.85rem; padding: 8px 12px; outline: none; transition: border-color 0.2s; width: 100%; }
+  .name-input:focus { border-color: #333; }
+  .name-input::placeholder { color: #2a2a2a; }
+  .btn-tune { background: linear-gradient(135deg, var(--orange), var(--orange-dark)); border: none; border-radius: 8px; color: white; font-family: 'Orbitron', monospace; font-size: 0.75rem; font-weight: 700; padding: 13px 14px; cursor: pointer; letter-spacing: 0.1em; transition: all 0.15s; box-shadow: 0 4px 15px rgba(255,107,0,0.3); width: 100%; margin-top: 6px; }
+  .btn-tune:active { transform: scale(0.97); }
+  .btn-tune:disabled { opacity: 0.5; cursor: not-allowed; }
+  .users-panel { background: #0d0d0d; border: 1px solid #1e1e1e; border-radius: 10px; padding: 10px 14px; min-height: 44px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .user-pill { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 20px; padding: 3px 10px; font-size: 0.65rem; color: #666; transition: all 0.3s; display: flex; align-items: center; gap: 5px; }
+  .user-pill.talking { border-color: var(--orange); color: var(--orange); box-shadow: 0 0 8px rgba(255,107,0,0.3); }
+  .user-pill.me { border-color: #2a4a2a; color: var(--green); }
+  .user-dot { width: 5px; height: 5px; border-radius: 50%; background: #333; }
+  .user-pill.me .user-dot { background: var(--green); }
+  .user-pill.talking .user-dot { background: var(--orange); animation: pulse-dot 0.5s infinite; }
+  @keyframes pulse-dot { 0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:0.5} }
+  .waveform-container { height: 36px; background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; position: relative; }
+  .waveform-canvas { width: 100%; height: 100%; }
+  .waveform-idle { font-size: 0.55rem; color: #2a2a2a; letter-spacing: 0.3em; position: absolute; }
+  .ptt-section { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .ptt-btn {
+    width: 140px; height: 140px; border-radius: 50%; border: none; cursor: pointer;
+    position: relative; transition: all 0.1s; user-select: none; -webkit-user-select: none; outline: none;
+    background: radial-gradient(circle at 35% 35%, #2a2a2a, #111);
+    box-shadow: 0 0 0 3px #1a1a1a, 0 0 0 5px #222, 0 0 0 7px #1a1a1a, 0 8px 30px rgba(0,0,0,0.8), inset 0 2px 4px rgba(255,255,255,0.05), inset 0 -2px 4px rgba(0,0,0,0.5);
+  }
+  .ptt-btn::before { content: ''; position: absolute; inset: 12px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #333, #0d0d0d); box-shadow: inset 0 3px 8px rgba(0,0,0,0.8); transition: all 0.1s; }
+  .ptt-btn::after { content: '📡'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 2.2rem; z-index: 1; }
+  .ptt-btn.transmitting { background: radial-gradient(circle at 35% 35%, #331a00, #1a0d00); box-shadow: 0 0 0 3px #331a00, 0 0 0 5px #ff6b00, 0 0 0 7px rgba(255,107,0,0.3), 0 0 30px rgba(255,107,0,0.4), 0 8px 30px rgba(0,0,0,0.8); transform: scale(0.95) translateY(3px); }
+  .ptt-btn.transmitting::after { content: '🔴'; animation: pulse-icon 0.5s infinite; }
+  @keyframes pulse-icon { 0%,100%{transform:scale(1)}50%{transform:scale(1.1)} }
+  .ptt-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .ptt-label { font-family: 'Orbitron', monospace; font-size: 0.65rem; color: #444; letter-spacing: 0.3em; text-transform: uppercase; }
+  .ptt-label.transmitting { color: var(--orange); text-shadow: 0 0 8px rgba(255,107,0,0.5); }
+  .bottom-controls { display: flex; gap: 8px; width: 100%; }
+  .vol-control { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .vol-label { font-size: 0.55rem; color: #333; letter-spacing: 0.2em; }
+  .vol-slider { -webkit-appearance: none; width: 100%; height: 4px; border-radius: 2px; background: #1a1a1a; outline: none; cursor: pointer; }
+  .vol-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--orange); cursor: pointer; box-shadow: 0 0 6px rgba(255,107,0,0.5); }
+  .log { background: #060606; border: 1px solid #151515; border-radius: 8px; padding: 8px 12px; max-height: 70px; overflow-y: auto; width: 100%; }
+  .log-entry { font-size: 0.6rem; color: #333; letter-spacing: 0.05em; padding: 1px 0; }
+  .log-entry.new { color: #555; }
+  .log-entry.important { color: var(--orange); }
+  .log-entry.success { color: var(--green); }
+  .divider { width: 100%; height: 1px; background: linear-gradient(90deg, transparent, #222, transparent); }
+  .antenna { width: 3px; height: 30px; background: linear-gradient(to top, #333, #555); border-radius: 2px; margin: 0 auto -10px auto; position: relative; }
+  .antenna::after { content: ''; position: absolute; top: -4px; left: 50%; transform: translateX(-50%); width: 7px; height: 7px; border-radius: 50%; background: #444; }
+  .not-connected-msg { font-size: 0.65rem; color: #333; text-align: center; letter-spacing: 0.1em; }
+  .static-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 999; opacity: 0; transition: opacity 0.1s; background: rgba(255,255,255,0.015); }
+  .static-overlay.active { opacity: 1; }
+  .log::-webkit-scrollbar { width: 3px; }
+  .log::-webkit-scrollbar-track { background: transparent; }
+  .log::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
+</style>
+</head>
+<body>
+<div class="static-overlay" id="staticOverlay"></div>
+<div class="app">
+  <div class="brand">
+    <h1>4 FREUNDE</h1>
+    <p>FUNKSYSTEM v2.0</p>
+  </div>
+  <div class="antenna"></div>
+  <div style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:#333;letter-spacing:0.2em;text-align:center;" id="uptimeDisplay">SERVER LÄUFT: --d --h --m --s</div>
+  <div class="radio">
+    <!-- Screen -->
+    <div class="screen">
+      <div class="screen-row">
+        <span class="screen-label">KANAL</span>
+        <div class="signal-bars" id="signalBars">
+          <div class="bar" id="b1"></div><div class="bar" id="b2"></div>
+          <div class="bar" id="b3"></div><div class="bar" id="b4"></div>
+          <div class="bar" id="b5"></div>
+        </div>
+      </div>
+      <div class="screen-row" style="margin-top:4px">
+        <div class="screen-channel" id="screenChannel">--</div>
+        <div class="screen-status" id="screenStatus">OFFLINE</div>
+      </div>
+    </div>
+
+```
+<!-- Name + Join -->
+<div class="name-section" id="nameSection">
+  <span class="setup-label">DEIN RUFZEICHEN</span>
+  <input type="text" class="name-input" id="nameInput" placeholder="Name eingeben..." maxlength="12">
+  <button class="btn-tune" id="tuneBtn" onclick="tuneIn()">EINTUNEN</button>
+</div>
+<!-- Saved badge shown on return visits -->
+<div id="savedBadge" style="display:none;align-items:center;justify-content:space-between;background:#0d0d0d;border:1px solid #2a2a2a;border-radius:10px;padding:10px 14px;">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div style="width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 6px rgba(0,255,136,0.5);"></div>
+    <span style="font-family:'Orbitron',monospace;font-size:0.8rem;color:var(--green);letter-spacing:0.15em;" id="savedBadgeName">---</span>
+  </div>
+  <button onclick="resetProfile()" style="background:none;border:1px solid #2a2a2a;border-radius:6px;color:#444;font-family:'Share Tech Mono',monospace;font-size:0.6rem;padding:4px 8px;cursor:pointer;letter-spacing:0.1em;">ÄNDERN</button>
+</div>
+
+<div class="divider"></div>
+
+<!-- Users -->
+<div>
+  <div style="font-size:0.6rem;color:#444;letter-spacing:0.2em;margin-bottom:6px">AUF DIESEM KANAL</div>
+  <div class="users-panel" id="usersPanel">
+    <span class="not-connected-msg">noch nicht eingetuned...</span>
+  </div>
+</div>
+
+<!-- Waveform -->
+<div class="waveform-container">
+  <canvas class="waveform-canvas" id="waveCanvas"></canvas>
+  <span class="waveform-idle" id="waveIdle">── STILLE ──</span>
+</div>
+
+<!-- PTT -->
+<div class="ptt-section">
+  <button class="ptt-btn" id="pttBtn" disabled
+    onmousedown="startTalk()" onmouseup="stopTalk()"
+    ontouchstart="startTalk(event)" ontouchend="stopTalk(event)">
+  </button>
+  <span class="ptt-label" id="pttLabel">HALTEN ZUM SPRECHEN</span>
+</div>
+
+<!-- Volume -->
+<div class="bottom-controls">
+  <div class="vol-control">
+    <span class="vol-label">LAUTST. ▸ LAUTSPR.</span>
+    <input type="range" class="vol-slider" id="volSlider" min="0" max="100" value="80">
+  </div>
+  <div class="vol-control">
+    <span class="vol-label">LAUTST. ▸ MIK.</span>
+    <input type="range" class="vol-slider" id="micSlider" min="0" max="100" value="80">
+  </div>
+</div>
+
+<div class="divider"></div>
+<div class="log" id="logBox">
+  <div class="log-entry">▸ 4 FREUNDE RADIO BEREIT</div>
+  <div class="log-entry">▸ Rufzeichen eingeben und eintunen</div>
+</div>
+```
+
+  </div>
+</div>
+
+<script>
+// ── STATE ──────────────────────────────────────────────────────────────────
+let peer = null;
+let myStream = null;
+let myName = 'GHOST';
+let isTransmitting = false;
+let audioCtx = null;
+let analyser = null;
+let animFrame = null;
+
+// connections: { conn, audio, call, name }
+let peers = {};  // peerId -> { conn, name, audio, call }
+
+// ── AUTO REMEMBER ─────────────────────────────────────────────────────────
+function saveProfile(name) {
+  try { localStorage.setItem('4fr-name', name); } catch(e){}
+}
+function loadProfile() {
+  try { return localStorage.getItem('4fr-name'); } catch(e){ return null; }
+}
+function resetProfile() {
+  try { localStorage.removeItem('4fr-name'); } catch(e){}
+  location.reload();
+}
+
+const CHANNEL = '1';
+const HOST_ID = '4freunde-kanal1-host';
+let amHost = false;
+
+// ── LOG ────────────────────────────────────────────────────────────────────
+function log(msg, type = 'normal') {
+  const box = document.getElementById('logBox');
+  const entry = document.createElement('div');
+  const t = new Date();
+  const time = `${t.getHours().toString().padStart(2,'0')}:${t.getMinutes().toString().padStart(2,'0')}`;
+  entry.className = 'log-entry new' + (type !== 'normal' ? ' ' + type : '');
+  entry.textContent = `▸ [${time}] ${msg}`;
+  box.appendChild(entry);
+  box.scrollTop = box.scrollHeight;
+  setTimeout(() => entry.classList.remove('new'), 600);
+}
+
+// ── SCREEN / SIGNAL ────────────────────────────────────────────────────────
+function setSignal(n) {
+  for (let i = 1; i <= 5; i++) document.getElementById('b'+i).classList.toggle('active', i <= n);
+}
+function setScreen(ch, status, type) {
+  document.getElementById('screenChannel').textContent = ch;
+  const el = document.getElementById('screenStatus');
+  el.textContent = status;
+  el.className = 'screen-status ' + (type||'');
+}
+
+// ── USERS PANEL ────────────────────────────────────────────────────────────
+function updateUsersPanel(talkingId) {
+  const panel = document.getElementById('usersPanel');
+  panel.innerHTML = '';
+  const me = document.createElement('div');
+  me.className = 'user-pill me' + (isTransmitting ? ' talking' : '');
+  me.innerHTML = `<div class="user-dot"></div>${myName} (du)`;
+  panel.appendChild(me);
+  Object.entries(peers).forEach(([id, p]) => {
+    if (!p.name || p.name === '???') return; // hide until we know their name
+    const pill = document.createElement('div');
+    pill.className = 'user-pill' + (id === talkingId ? ' talking' : '');
+    pill.innerHTML = `<div class="user-dot"></div>${p.name}`;
+    panel.appendChild(pill);
+  });
+}
+
+// ── WAVEFORM ───────────────────────────────────────────────────────────────
+function startWaveform(stream) {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+  const src = audioCtx.createMediaStreamSource(stream);
+  src.connect(analyser);
+  document.getElementById('waveIdle').style.display = 'none';
+  drawWave();
+}
+function drawWave() {
+  const canvas = document.getElementById('waveCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.offsetWidth;
+  canvas.height = canvas.offsetHeight;
+  const data = new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteTimeDomainData(data);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle = isTransmitting ? '#ff6b00' : '#1a3a1a';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  const sw = canvas.width / data.length;
+  let x = 0;
+  for (let i = 0; i < data.length; i++) {
+    const y = (data[i]/128.0 * canvas.height)/2;
+    i === 0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    x += sw;
+  }
+  ctx.stroke();
+  animFrame = requestAnimationFrame(drawWave);
+}
+
+// ── SOUNDS ─────────────────────────────────────────────────────────────────
+function playStatic(ms=200) {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate*(ms/1000), audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  const g = audioCtx.createGain(); g.gain.value = 0.07;
+  src.connect(g); g.connect(audioCtx.destination); src.start();
+}
+function playBeep() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  osc.connect(g); g.connect(audioCtx.destination);
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(900, audioCtx.currentTime+0.12);
+  g.gain.setValueAtTime(0.18, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+0.18);
+  osc.start(); osc.stop(audioCtx.currentTime+0.18);
+}
+
+// ── AUDIO PLUMBING ─────────────────────────────────────────────────────────
+function attachAudio(peerId, remoteStream) {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  // Remove old audio if exists
+  if (peers[peerId] && peers[peerId].audio) {
+    peers[peerId].audio.srcObject = null;
+  }
+  const audio = new Audio();
+  audio.srcObject = remoteStream;
+  audio.autoplay = true;
+  audio.volume = document.getElementById('volSlider').value / 100;
+  document.getElementById('volSlider').addEventListener('input', () => {
+    audio.volume = document.getElementById('volSlider').value / 100;
+  });
+  if (peers[peerId]) peers[peerId].audio = audio;
+}
+
+// ── BROADCAST ──────────────────────────────────────────────────────────────
+function broadcast(data) {
+  Object.values(peers).forEach(p => { if (p.conn && p.conn.open) p.conn.send(data); });
+}
+
+// ── SETUP A DATA CONNECTION ────────────────────────────────────────────────
+function setupConn(conn) {
+  const pid = conn.peer;
+  if (!peers[pid]) peers[pid] = { conn, name: '???', audio: null, call: null };
+  else peers[pid].conn = conn;
+
+  conn.on('data', (data) => {
+    if (data.type === 'hello') {
+      const isNew = !peers[pid].greeted2;
+      peers[pid].name = data.name;
+      peers[pid].greeted2 = true;
+      if (!peers[pid].greeted) {
+        peers[pid].greeted = true;
+        if (conn.open) conn.send({ type: 'hello', name: myName });
+        const call = peer.call(pid, myStream);
+        peers[pid].call = call;
+        call.on('stream', s => attachAudio(pid, s));
+      }
+      updateUsersPanel(null);
+      if (isNew) {
+        log(`${data.name} hat den Kanal betreten`, 'success');
+        playStatic(150);
+        setSignal(Math.min(5, Object.keys(peers).length + 3));
+      }
+    }
+    if (data.type === 'ptt-start') {
+      if (peers[pid]) peers[pid].name = data.name;
+      updateUsersPanel(pid);
+      setScreen(CHANNEL, '◉ EMPFANG', 'active');
+      playStatic(80);
+      document.getElementById('staticOverlay').classList.add('active');
+      setTimeout(() => document.getElementById('staticOverlay').classList.remove('active'), 100);
+    }
+    if (data.type === 'ptt-stop') {
+      updateUsersPanel(null);
+      setScreen(CHANNEL, 'ONLINE', 'active');
+      playStatic(80); playBeep();
+    }
+    if (data.type === 'bye') {
+      const name = peers[pid]?.name || 'jemand';
+      delete peers[pid];
+      updateUsersPanel(null);
+      log(`${name} hat den Kanal verlassen`);
+    }
+  });
+
+  conn.on('close', () => {
+    const name = peers[pid]?.name || '???';
+    const wasHost = pid === HOST_ID || (peers[pid] && peers[pid].wasHost);
+    delete peers[pid];
+    updateUsersPanel(null);
+    log(`${name} getrennt`);
+    // if host left, race to claim host slot
+    if (wasHost || pid.includes('host')) {
+      setTimeout(() => tryBecomeHost(), Math.random() * 500);
+    }
+  });
+
+  conn.on('error', () => {});
+}
+
+// ── CONNECT TO A PEER ──────────────────────────────────────────────────────
+function connectTo(targetId) {
+  if (!peer || targetId === peer.id || peers[targetId]) return;
+  peers[targetId] = { conn: null, name: '???', audio: null, call: null, greeted: false };
+  const conn = peer.connect(targetId, { reliable: true, serialization: 'json' });
+  peers[targetId].conn = conn;
+  conn.on('open', () => {
+    peers[targetId].greeted = true;
+    if (targetId === HOST_ID) peers[targetId].wasHost = true;
+    conn.send({ type: 'hello', name: myName });
+  });
+  conn.on('error', () => { delete peers[targetId]; });
+  conn.on('data', (data) => {
+    // handle via setupConn but conn is already made
+    if (data.type === 'hello') {
+      const isNew = !peers[targetId] || !peers[targetId].name || peers[targetId].name === '???';
+      if (peers[targetId]) peers[targetId].name = data.name;
+      if (!peers[targetId]?.call) {
+        const call = peer.call(targetId, myStream);
+        if (peers[targetId]) peers[targetId].call = call;
+        call.on('stream', s => attachAudio(targetId, s));
+      }
+      updateUsersPanel(null);
+      if (isNew) {
+        log(`${data.name} hat den Kanal betreten`, 'success');
+        playStatic(150);
+        setSignal(Math.min(5, Object.keys(peers).length + 3));
+      }
+    }
+    if (data.type === 'ptt-start') {
+      if (peers[targetId]) peers[targetId].name = data.name;
+      updateUsersPanel(targetId);
+      setScreen(CHANNEL, '◉ EMPFANG', 'active');
+      playStatic(80);
+      document.getElementById('staticOverlay').classList.add('active');
+      setTimeout(() => document.getElementById('staticOverlay').classList.remove('active'), 100);
+    }
+    if (data.type === 'ptt-stop') {
+      updateUsersPanel(null);
+      setScreen(CHANNEL, 'ONLINE', 'active');
+      playStatic(80); playBeep();
+    }
+    if (data.type === 'bye') {
+      const name = peers[targetId]?.name || 'jemand';
+      delete peers[targetId];
+      updateUsersPanel(null);
+      log(`${name} hat den Kanal verlassen`);
+    }
+    conn.on('close', () => {
+      const name = peers[targetId]?.name || '???';
+      const wasHost = targetId === HOST_ID;
+      delete peers[targetId];
+      updateUsersPanel(null);
+      log(`${name} getrennt`);
+      if (wasHost) {
+        setTimeout(() => tryBecomeHost(), Math.random() * 500);
+      }
+    });
+  });
+}
+
+// ── TUNE IN ────────────────────────────────────────────────────────────────
+async function tuneIn() {
+  const nameVal = document.getElementById('nameInput').value.trim().toUpperCase() || 'GHOST';
+  myName = nameVal;
+  localStorage.setItem('4fr-name', myName);
+
+  document.getElementById('tuneBtn').disabled = true;
+  document.getElementById('tuneBtn').textContent = 'ABSTIMMEN...';
+  setScreen(CHANNEL, 'TUNING...', '');
+  setSignal(1);
+  log('Abstimmen auf Kanal 1...');
+
+  try {
+    myStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    startWaveform(myStream);
+    myStream.getAudioTracks().forEach(t => t.enabled = false);
+  } catch(e) {
+    log('Mikrofonzugriff verweigert!', 'important');
+    document.getElementById('tuneBtn').disabled = false;
+    document.getElementById('tuneBtn').textContent = 'EINTUNEN';
+    return;
+  }
+
+  // Try to become the HOST first
+  attemptHost();
+}
+
+function attemptHost() {
+  const p = new Peer(HOST_ID, {
+    host: window.location.hostname,
+    port: window.location.port || (window.location.protocol === 'https:' ? 443 : 80),
+    path: '/peerjs',
+    secure: window.location.protocol === 'https:',
+    debug: 0,
+    config: { iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' }
+    ]}
+  });
+
+  p.on('open', () => {
+    peer = p;
+    amHost = true;
+    log('Du bist Host auf Kanal 1', 'success');
+    onReady(true);
+  });
+
+  p.on('error', (err) => {
+    if (err.type === 'unavailable-id') {
+      p.destroy();
+      becomeGuest();
+    } else if (err.type === 'webrtc' || err.type === 'peer-unavailable') {
+      // normal WebRTC negotiation noise, ignore
+    } else {
+      log('Fehler: ' + err.type, 'important');
+      document.getElementById('tuneBtn').disabled = false;
+      document.getElementById('tuneBtn').textContent = 'EINTUNEN';
+    }
+  });
+}
+
+function becomeGuest() {
+  const guestId = '4freunde-k1-' + Math.random().toString(36).substr(2,8);
+  const p = new Peer(guestId, {
+    host: window.location.hostname,
+    port: window.location.port || (window.location.protocol === 'https:' ? 443 : 80),
+    path: '/peerjs',
+    secure: window.location.protocol === 'https:',
+    debug: 0,
+    config: { iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' }
+    ]}
+  });
+
+  p.on('open', () => {
+    peer = p;
+    amHost = false;
+    log('Verbunden als Gast', 'success');
+    onReady(false);
+    connectTo(HOST_ID);
+  });
+
+  p.on('error', (err) => {
+    if (err.type === 'webrtc' || err.type === 'peer-unavailable') {
+      // normal noise, ignore
+    } else {
+      log('Gastfehler: ' + err.type, 'important');
+      document.getElementById('tuneBtn').disabled = false;
+      document.getElementById('tuneBtn').textContent = 'EINTUNEN';
+    }
+  });
+}
+
+function onReady(isHost) {
+  setScreen(CHANNEL, 'ONLINE', 'active');
+  // Keep audio session alive + request wake lock so it runs even with other apps
+  requestWakeLock();
+  setSignal(4);
+  document.getElementById('pttBtn').disabled = false;
+  document.getElementById('tuneBtn').textContent = 'EINGETUNED';
+  peers = {};
+  updateUsersPanel(null);
+  playStatic(300);
+  log(`Verbunden als ${myName}`, 'success');
+
+  // Accept incoming connections
+  peer.on('connection', (conn) => {
+    setupConn(conn);
+  });
+
+  // Accept incoming calls
+  peer.on('call', (call) => {
+    call.answer(myStream);
+    const pid = call.peer;
+    if (!peers[pid]) peers[pid] = { conn: null, name: '???', audio: null, call };
+    else peers[pid].call = call;
+    call.on('stream', s => attachAudio(pid, s));
+  });
+
+  peer.on('error', (err) => {
+    if (err.type !== 'peer-unavailable' && err.type !== 'webrtc') {
+      log('Fehler: ' + err.type, 'important');
+    }
+  });
+}
+
+// ── PTT ────────────────────────────────────────────────────────────────────
+function startTalk(e) {
+  if (e) e.preventDefault();
+  if (!peer || !myStream) return;
+  isTransmitting = true;
+  myStream.getAudioTracks().forEach(t => t.enabled = true);
+  document.getElementById('pttBtn').classList.add('transmitting');
+  document.getElementById('pttLabel').textContent = 'AM SENDEN...';
+  document.getElementById('pttLabel').classList.add('transmitting');
+  setScreen(CHANNEL, '◉ TX', 'transmit');
+  updateUsersPanel(null);
+  broadcast({ type: 'ptt-start', name: myName });
+  playStatic(100);
+}
+function stopTalk(e) {
+  if (e) e.preventDefault();
+  if (!isTransmitting) return;
+  isTransmitting = false;
+  myStream.getAudioTracks().forEach(t => t.enabled = false);
+  document.getElementById('pttBtn').classList.remove('transmitting');
+  document.getElementById('pttLabel').textContent = 'HALTEN ZUM SPRECHEN';
+  document.getElementById('pttLabel').classList.remove('transmitting');
+  setScreen(CHANNEL, 'ONLINE', 'active');
+  updateUsersPanel(null);
+  broadcast({ type: 'ptt-stop', name: myName });
+  playStatic(100); playBeep();
+}
+
+
+
+// ── HOST PROMOTION ────────────────────────────────────────────────────────
+function tryBecomeHost() {
+  if (amHost) return; // already host
+  const p = new Peer(HOST_ID, {
+    host: window.location.hostname,
+    port: window.location.port || (window.location.protocol === 'https:' ? 443 : 80),
+    path: '/peerjs',
+    secure: window.location.protocol === 'https:',
+    debug: 0,
+    config: { iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' }
+    ]}
+  });
+  p.on('open', () => {
+    // Destroy old peer and take over host slot
+    const oldPeer = peer;
+    peer = p;
+    amHost = true;
+    log('Du bist jetzt Host 👑', 'success');
+    // Re-register connection and call handlers on new peer
+    peer.on('connection', (conn) => { setupConn(conn); });
+    peer.on('call', (call) => {
+      call.answer(myStream);
+      const pid = call.peer;
+      if (!peers[pid]) peers[pid] = { conn: null, name: '???', audio: null, call };
+      else peers[pid].call = call;
+      call.on('stream', s => attachAudio(pid, s));
+    });
+    peer.on('error', (err) => {
+      if (err.type !== 'peer-unavailable' && err.type !== 'webrtc') {
+        log('Fehler: ' + err.type, 'important');
+      }
+    });
+    // Reconnect to all existing peers so they can find us
+    Object.keys(peers).forEach(pid => connectTo(pid));
+    if (oldPeer && oldPeer !== peer) setTimeout(() => oldPeer.destroy(), 1000);
+  });
+  p.on('error', (err) => {
+    if (err.type === 'unavailable-id') {
+      // someone else already grabbed host, that's fine
+    }
+  });
+}
+
+// ── WAKE LOCK (keeps running even with screen/other apps) ─────────────────
+let wakeLock = null;
+async function requestWakeLock() {
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      log('Gerät bleibt aktiv (Wake Lock)', 'success');
+      wakeLock.addEventListener('release', () => {
+        // re-acquire if page still visible
+        if (document.visibilityState === 'visible') requestWakeLock();
+      });
+    }
+  } catch(e) {}
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && peer) requestWakeLock();
+});
+
+// ── UPTIME ────────────────────────────────────────────────────────────────
+async function fetchUptime() {
+  try {
+    const res = await fetch('/uptime');
+    const { days, hours, minutes, seconds } = await res.json();
+    document.getElementById('uptimeDisplay').textContent =
+      `SERVER LÄUFT: ${days}T ${hours}H ${minutes}M ${seconds}S`;
+    document.getElementById('uptimeDisplay').style.color = '#2a4a2a';
+  } catch(e) {}
+}
+fetchUptime();
+setInterval(fetchUptime, 5000);
+
+// ── CLEANUP ────────────────────────────────────────────────────────────────
+window.addEventListener('beforeunload', () => broadcast({ type: 'bye', name: myName }));
+document.getElementById('pttBtn').addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+
+// ── AUTO CONNECT ON LOAD ──────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  const saved = loadProfile();
+  if (saved) {
+    document.getElementById('nameInput').value = saved;
+    // hide name section since we already know who they are
+    document.getElementById('nameSection').style.display = 'none';
+    document.getElementById('savedBadge').style.display = 'flex';
+    document.getElementById('savedBadgeName').textContent = saved;
+    setTimeout(() => {
+      log('Willkommen zurück ' + saved + '! Verbinde...', 'success');
+      tuneIn();
+    }, 800);
+  } else {
+    // first time — show name section, hide badge
+    document.getElementById('savedBadge').style.display = 'none';
+  }
+});
+
+
+</script>
+
+</body>
+</html>
