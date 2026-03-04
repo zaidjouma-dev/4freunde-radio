@@ -40,4 +40,21 @@ console.log(`[-] ${client.getId()} disconnected`);
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
 console.log(`4 Freunde Radio running on port ${PORT}`);
+
+// Keep Glitch alive by pinging self every 5 minutes
+const PROJECT_URL = process.env.PROJECT_DOMAIN
+? `https://${process.env.PROJECT_DOMAIN}.glitch.me`
+: null;
+
+if (PROJECT_URL) {
+setInterval(() => {
+const https = require(‘https’);
+https.get(PROJECT_URL + ‘/uptime’, (res) => {
+console.log(`[ping] self-ping ok - status ${res.statusCode}`);
+}).on(‘error’, (e) => {
+console.log(`[ping] self-ping failed: ${e.message}`);
+});
+}, 5 * 60 * 1000); // every 5 minutes
+console.log(`Self-ping enabled for ${PROJECT_URL}`);
+}
 });
